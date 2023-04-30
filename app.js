@@ -1,40 +1,31 @@
-const http = require('http');
-const url = require('url');
+const express = require('express');
+const request = require('request');
+const app = express();
 
-const hostname = '0.0.0.0';
-const port = process.env.PORT || 3000;
-
-const server = http.createServer((req, res) => {
-  const queryObject = url.parse(req.url, true).query;
-  const jsonUrl = queryObject.json_url;
-  let start = queryObject.start ? parseInt(queryObject.start) : 0;
-  let end = queryObject.end;
-  let limit = queryObject.limit ? parseInt(queryObject.limit) : undefined;
+app.get('/api/data', (req, res) => {
+  const jsonUrl = req.query.json_url;
+  const start = req.query.start ? parseInt(req.query.start) : 0;
+  const end = req.query.end ? parseInt(req.query.end) : undefined;
+  const limit = req.query.limit ? parseInt(req.query.limit) : undefined;
   
-  http.get(jsonUrl, (response) => {
-    let data = '';
-    response.on('data', (chunk) => {
-      data += chunk;
-    });
-    response.on('end', () => {
-      const json_data = JSON.parse(data);
-      if (end === undefined) {
-        end = json_data.length;
-      } else {
-        end = parseInt(end);
-      }
-      if (limit !== undefined) {
-        end = start + limit;
-      }
-      const response_data = json_data.slice(start, end);
-      res.setHeader('Content-Type', 'application/json');
-      res.end(JSON.stringify(response_data));
-    });
-  }).on('error', (err) => {
-    console.log(`Error: ${err.message}`);
+  request.get(jsonUrl, (error, response, body) => {
+    if (error) {
+      return res.status(500).send(error.message);
+    }
+    try {
+      const data = JSON.parse(body);
+      const startIdx = Math.min(start, data.length);
+      const endIdx = end ? Math.min(end, data.length) : data.length;
+      const limitIdx = limit ? Math.min(start + limit, data.length) : endIdx;
+      const result = data.slice(startIdx, limitIdx);
+      return res.status(200).json(result);
+    } catch (e) {
+      return res.status(500).send('Invalid JSON data');
+    }
   });
 });
 
-server.listen(port, hostname, () => {
-  console.log(`Server running at http://${hostname}:${port}/`);
+const port = process.env.PORT || 3000;
+app.listen(port, () => {
+  console.log(`Server running on port ${port}`);
 });
