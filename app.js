@@ -1,48 +1,40 @@
-const express = require('express');
-const app = express();
-const request = require('request');
-const bodyParser = require('body-parser');
+const http = require('http');
+const url = require('url');
 
-app.use(bodyParser.json());
-app.use(bodyParser.urlencoded({ extended: true }));
+const hostname = '0.0.0.0';
+const port = process.env.PORT || 3000;
 
-app.get('/api/data', (req, res) => {
-  const jsonUrl = req.query.json_url;
-  let start = req.query.start;
-  let end = req.query.end;
-  let limit = req.query.limit;
-
-  request.get(jsonUrl, (err, response, body) => {
-    if (err) {
-      console.error(err);
-      res.status(500).send('Error fetching data');
-      return;
-    }
-
-    let jsonData;
-    try {
-      jsonData = JSON.parse(body);
-    } catch (err) {
-      console.error(err);
-      res.status(500).send('Error parsing JSON data');
-      return;
-    }
-
-    start = start ? parseInt(start) : 0;
-    end = end ? parseInt(end) : jsonData.length;
-
-    if (limit) {
-      limit = parseInt(limit);
-      end = start + limit;
-    }
-
-    const response_data = jsonData.slice(start, end);
-
-    res.setHeader('Content-Type', 'application/json');
-    res.send(JSON.stringify(response_data));
+const server = http.createServer((req, res) => {
+  const queryObject = url.parse(req.url, true).query;
+  const jsonUrl = queryObject.json_url;
+  let start = queryObject.start ? parseInt(queryObject.start) : 0;
+  let end = queryObject.end;
+  let limit = queryObject.limit ? parseInt(queryObject.limit) : undefined;
+  
+  http.get(jsonUrl, (response) => {
+    let data = '';
+    response.on('data', (chunk) => {
+      data += chunk;
+    });
+    response.on('end', () => {
+      const json_data = JSON.parse(data);
+      if (end === undefined) {
+        end = json_data.length;
+      } else {
+        end = parseInt(end);
+      }
+      if (limit !== undefined) {
+        end = start + limit;
+      }
+      const response_data = json_data.slice(start, end);
+      res.setHeader('Content-Type', 'application/json');
+      res.end(JSON.stringify(response_data));
+    });
+  }).on('error', (err) => {
+    console.log(`Error: ${err.message}`);
   });
 });
 
-app.listen(process.env.PORT || 3000, () => {
-  console.log('App listening on port 3000!');
+server.listen(port, hostname, () => {
+  console.log(`Server running at http://${hostname}:${port}/`);
 });
