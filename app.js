@@ -1,28 +1,36 @@
 const express = require('express');
-const request = require('request');
+const fs = require('fs');
 const app = express();
 
+let jsonData = null;
+fs.readFile('data.json', (error, data) => {
+  if (error) {
+    console.error(`Failed to read data.json: ${error.message}`);
+    return;
+  }
+  try {
+    jsonData = JSON.parse(data);
+    console.log(`Read ${jsonData.length} records from data.json`);
+  } catch (e) {
+    console.error('Failed to parse data.json as JSON data');
+  }
+});
+
 app.get('/api/data', (req, res) => {
-  const jsonUrl = req.query.json_url;
+  if (!jsonData) {
+    return res.status(500).send('Failed to read data');
+  }
+
   const start = req.query.start ? parseInt(req.query.start) : 0;
   const end = req.query.end ? parseInt(req.query.end) : undefined;
   const limit = req.query.limit ? parseInt(req.query.limit) : undefined;
   
-  request.get(jsonUrl, (error, response, body) => {
-    if (error) {
-      return res.status(500).send(error.message);
-    }
-    try {
-      const data = JSON.parse(body);
-      const startIdx = Math.min(start, data.length);
-      const endIdx = end ? Math.min(end, data.length) : data.length;
-      const limitIdx = limit ? Math.min(start + limit, data.length) : endIdx;
-      const result = data.slice(startIdx, limitIdx);
-      return res.status(200).json(result);
-    } catch (e) {
-      return res.status(500).send('Invalid JSON data');
-    }
-  });
+  const startIdx = Math.min(start, jsonData.length);
+  const endIdx = end ? Math.min(end, jsonData.length) : jsonData.length;
+  const limitIdx = limit ? Math.min(start + limit, jsonData.length) : endIdx;
+  const result = jsonData.slice(startIdx, limitIdx);
+  
+  return res.status(200).json(result);
 });
 
 const port = process.env.PORT || 3000;
